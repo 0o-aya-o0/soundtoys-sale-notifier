@@ -5,16 +5,14 @@ from email.mime.multipart import MIMEMultipart
 from email.header import Header
 import smtplib
 from configparser import ConfigParser
+import schedule
+from time import sleep
 
 # ConfigParserのインスタンスを作成
 config = ConfigParser()
 
 # config.iniファイルを読み込む
 config.read('config.ini')
-
-# SMTPセクションからサーバー設定を取得
-smtp_server = config.get('SMTP', 'server')
-smtp_port = config.getint('SMTP', 'port')  # ポートは整数として読み込む
 
 print("スクリプト実行開始")
 
@@ -59,22 +57,31 @@ def check_sale_prices(plugins):
     return sale_info
 
 def send_email(sale_info):
+    # ConfigParserのインスタンスを作成
+    config = ConfigParser()
+    # config.iniファイルを読み込む
+    config.read('config.ini')
+
+    # SMTPセクションからサーバー設定を取得
+    smtp_server = config.get('SMTP', 'server')
+    smtp_port = config.getint('SMTP', 'port')  # ポートは整数として読み込む
+
     sender = config.get('EMAIL', 'sender')
     receiver = config.get('EMAIL', 'receiver')
     password = config.get('EMAIL', 'password')
     subject = 'プラグインのセール情報'
     body = 'セール中のプラグインの価格は以下の通りです：\n\n'
-    
+
     for name, info in sale_info.items():
         body += (f'{name}: セール価格 {info["sale_price"]} (通常価格 {info["normal_price"]})\n'
                  f'詳細はこちら: {info["url"]}\n\n')
-    
+
     message = MIMEMultipart()
     message['From'] = sender
     message['To'] = receiver
     message['Subject'] = subject
     message.attach(MIMEText(body, 'plain'))
-    
+
     try:
         # SMTPサーバーの設定とメールの送信
         server = smtplib.SMTP_SSL(smtp_server, smtp_port)
@@ -85,9 +92,20 @@ def send_email(sale_info):
     except Exception as e:
         print(f"メール送信に失敗しました: {e}")
 
-sale_info = check_sale_prices(plugins)
-print(sale_info)  # デバッグ出力
-if sale_info:
-    send_email(sale_info)
-else:
-    print('セール中のプラグインはありません。')
+
+def scheduled_task():
+    print("スクリプト実行開始")
+    sale_info = check_sale_prices(plugins)
+    print(sale_info)  # デバッグ出力
+    if sale_info:
+        send_email(sale_info)
+    else:
+        print('セール中のプラグインはありません。')
+
+# スケジュール登録
+schedule.every().day.at("10:30").do(scheduled_task)  #  条件を追加: 毎日10:30
+
+# イベント実行
+while True:
+    schedule.run_pending()
+    sleep(1)
